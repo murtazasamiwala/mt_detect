@@ -1,6 +1,5 @@
 '''Module to check if a translation matches with google translate'''
 #%%
-import docx2txt
 import os
 from os.path import abspath
 from googletrans import Translator
