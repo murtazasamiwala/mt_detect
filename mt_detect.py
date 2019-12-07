@@ -11,6 +11,8 @@ import win32com.client as win32
 import xlrd
 import pptx
 import csv
+import sys
+from datetime import datetime
 base_path = os.path.dirname(abspath('__file__'))
 #%%
 def get_jc(path = base_path):
@@ -18,8 +20,11 @@ def get_jc(path = base_path):
     if jc == None:
         for i in os.listdir(path):
             parts = i.split('_')
-            if parts[-1].split('.')[-1] == 'zip':
-                jc = parts[0] + '_' + parts[1]
+            if (i.endswith('zip')) | ((os.path.isdir(i)) & (i != 'result_dir')):
+                if parts[2]  not in ['Original', 'Translate.zip', '604']:
+                    jc = parts[0] + '_' + parts[1] + '_' + parts[2]
+                else:
+                    jc = parts[0] + '_' + parts[1]
     return jc
 #%%
 def extract_text(fname, path = base_path):
@@ -29,6 +34,7 @@ def extract_text(fname, path = base_path):
         doc = word.Documents.Open(path+'\\'+fname)
         txt = doc.Content.Text
         doc.Close(False)
+        word.Quit()
     elif fname.split('.')[-1] in ['xls', 'xlsx']:
         workbook = xlrd.open_workbook(fname)
         sheets_name = workbook.sheet_names()
@@ -64,40 +70,36 @@ def extract_text(fname, path = base_path):
         csv_reader = csv.reader(csv_doc, delimiter=',')
         txt = '\n'.join(['\t'.join(row) for row in csv_reader])
     return txt
-
-def zip_to_txt(path = base_path):
+#%%
+def unzip_folders(path = base_path):
+    for i in os.listdir(path):
+        if i.endswith('.zip'):
+            zf = ZipFile(i)
+            zf.extractall()
+    return
+#%%
+def folder_to_txt(path = base_path):
     source = []
     translated = []
     source_names = []
+    unzip_folders()
     for i in os.listdir(path):
-        extension=i.split('.')[-1]
-        if extension=='zip':
-            if i.split('_')[2]=='Original':
-                zf=ZipFile(i)
-                zf.extractall()
-                for j in os.listdir(path):
-                    ext2=j.split('.')[-1]
-                    if ext2==j:
-                        docs_path=base_path+'\\'+j+'\\'+'Job_files'
-                        for k in os.listdir(docs_path):
-                            source.append(extract_text(k, docs_path))
-                            source_names.append(k)
-                        shutil.rmtree(j)
-            elif i.split('_')[2]=='Translate.zip':
-                zf=ZipFile(i)
-                zf.extractall()
-                for j in os.listdir(path):
-                    ext2=j.split('.')[-1]
-                    if ext2==j:
-                        docs_path=base_path+'\\'+j+'\\'+i.split('.')[0]
-                        for k  in os.listdir(docs_path):
-                            translated.append(extract_text(k, docs_path))
-                        shutil.rmtree(j)            
+        if (os.path.isdir(i)) & (i != 'results_dir'):
+            for j in os.listdir(base_path + '\\'+ i):
+                if j == 'Job_files':
+                    docs_path = base_path + '\\'+ i +'\\' + 'Job_files'
+                    for k in os.listdir(docs_path):
+                        source.append(extract_text(k, docs_path))
+                        source_names.append(k)
+                elif j.endswith('Translate'):
+                    docs_path = base_path + '\\'+ i +'\\' + j
+                    for k in os.listdir(docs_path):
+                        translated.append(extract_text(k, docs_path))         
     source_str=''.join([text+'\n' for text in source])
     trans_str=''.join([text+'\n'for text in translated])
     return source_str,trans_str,source_names
 #%%
-source,translated,source_file_names=zip_to_txt()
+source,translated,source_file_names=folder_to_txt()
 #%%
 similarity=SequenceMatcher(None,source,translated)
 rep=0
@@ -129,7 +131,7 @@ def doc_split(doc):
     temp_list=[]
     final=[]
     for i in range(len(tokens)):
-        if len_counter+len(tokens[i])+len(temp_list)-1<2000:
+        if len_counter+len(tokens[i])+len(temp_list)-1<1800:
             len_counter=len_counter+len(tokens[i])
             temp_list.append(tokens[i])
         else:
@@ -144,8 +146,27 @@ def doc_split(doc):
 google_output=[]
 split_source, language = doc_split(source)
 for i in split_source:
-    translator=Translator()
-    google_output.append(translator.translate(i,dest='en').text)
+    try:
+        translator=Translator()
+        google_output.append(translator.translate(i,dest='en').text)
+    except ValueError:
+        job_code = 'Job code: {}\n'.format(get_jc()) + '*' * 20 + '\n'
+        msg_2 = 'Execution failed because of unrecognizabe characters.\n'
+        msg_3 = 'Follow instructions for execution fail.'
+        fin_msg = job_code + msg_2 + msg_3
+        result = open('script_result.txt','w',encoding='utf-8')
+        result.write(fin_msg)
+        result.close()
+        for i in os.listdir(base_path):
+            if i.endswith('.zip'):
+                os.remove(i)
+        sys.exit()
+
+zip_check = ['zip' in i for i in os.listdir(base_path)]
+if any(zip_check):
+    for i in os.listdir(base_path):
+        if os.path.isdir(i):
+            shutil.rmtree(i)
 google_translated=' '.join(google_output)
 #%%
 similarity2=SequenceMatcher(None,google_translated,translated)
@@ -154,7 +175,7 @@ ratio=similarity2.ratio()
 #%%
 texts={'google_translated':google_translated,'translated':translated}
 for i in texts.keys():
-    fname=open('{}.txt'.format(i),'+w',encoding='utf8')
+    fname=open('{}.txt'.format(i),'w',encoding='utf8')
     fname.write(texts[i])
     fname.close()
 #%%
@@ -167,7 +188,6 @@ for i in matches:
         high_matches += 1
 results.close()
 
-
 def final_report():
     job_code = 'Job code: {}\n'.format(get_jc()) + '*' * 20 + '\n'
     percent = round(ratio * 100, 2)
@@ -178,8 +198,27 @@ def final_report():
     else:
         decision = 'Similarity is likely to be coincidental. Ignore'
     final_msg = job_code + similarity + matches + decision
-    result = open('script_result.txt', 'a', encoding='utf8')
+    result = open('script_result.txt', 'w', encoding='utf8')
     result.write(final_msg)
     result.close()
-
+    if 'result_dir' not in os.listdir(base_path):
+        os.mkdir('result_dir')
+    results_path = base_path + '\\' + 'result_dir'
+    if 'results.csv' not in os.listdir(results_path):
+        with open(results_path + '\\' + 'results.csv', 'a', newline = '') as result_csv:
+            csv_writer = csv.writer(result_csv, delimiter = ',')
+            fields = ['job_code','date_time','source_chars','match_segments','percent_match']
+            csv_writer.writerow(fields)
+            result_csv.close()
+    jc = get_jc()
+    dt = datetime.now().strftime("%d/%m/%Y %H:%M")
+    sc = len(source)
+    ms = high_matches
+    pm = percent
+    result_list = [jc, dt, sc, ms, pm]
+    with open(results_path + '\\' + 'results.csv', 'a', newline = '') as result_csv:
+        csv_writer = csv.writer(result_csv, delimiter = ',')
+        csv_writer.writerow(result_list)
+        result_csv.close()
 final_report()
+
