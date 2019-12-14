@@ -4,3 +4,4 @@ __pycache__/
 *.spec
 testing_batch/
 *.docx
+*.json
