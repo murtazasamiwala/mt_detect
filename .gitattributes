@@ -1,5 +1,7 @@
 __pycache__/ export-ignore
 build/mt_detect/ export-ignore
+build/cmt_detect export-ignore
 *.toc export-ignore
 xref-mt_detect.html export-ignore
 hooks/ export-ignore
+file_store/result_dir export-ignore

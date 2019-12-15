@@ -5,3 +5,4 @@ __pycache__/
 testing_batch/
 *.docx
 *.json
+file_store/
