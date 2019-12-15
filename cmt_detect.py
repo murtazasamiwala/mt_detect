@@ -206,12 +206,12 @@ def final_report():
     job_code = 'Job code: {}\n'.format(get_jc()) + '*' * 20 + '\n'
     percent = round(ratio * 100, 2)
     similarity = f'Translation is {percent}% similar to google translate\n'
-    matches = f'{high_matches} fragments significantly match google\n'
-    if (high_matches > 5) | (percent > 25):
+    match_msg = f'{high_matches} fragments significantly match google\n'
+    if (high_matches > 7) | (percent > 35):
         decision = 'There seems high similarity to google. Please escalate'
     else:
         decision = 'Similarity is likely to be coincidental. Ignore'
-    final_msg = job_code + similarity + matches + decision
+    final_msg = job_code + similarity + match_msg + decision
     result = open('script_result.txt', 'w', encoding='utf8')
     result.write(final_msg)
     result.close()
@@ -221,7 +221,7 @@ def final_report():
         with open(csv_path, 'a', newline='') as result_csv:
             csv_writer = csv.writer(result_csv, delimiter=',')
             fields = ['job_code', 'date_time', 'source_chars',
-                      'match_segments', 'percent_match']
+                      'match_segments', 'percent_match', 'percent_segment']
             csv_writer.writerow(fields)
             result_csv.close()
     jc = get_jc()
@@ -229,7 +229,8 @@ def final_report():
     sc = len(source)
     ms = high_matches
     pm = percent
-    result_list = [jc, dt, sc, ms, pm]
+    psm = round((high_matches / len(matches)) * 100, 2)
+    result_list = [jc, dt, sc, ms, pm, psm]
     with open(csv_path, 'a', newline='') as result_csv:
         csv_writer = csv.writer(result_csv, delimiter=',')
         csv_writer.writerow(result_list)
