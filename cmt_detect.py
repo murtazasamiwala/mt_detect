@@ -153,10 +153,11 @@ job_path = results_path + '\\' + get_jc() + '\\'
 
 def translate_text(source_text):
     """Check if text is already tranlsated. If not, translate it."""
-    if get_jc() in os.listdir(results_path):
-        gt_file = 'google_translated.txt'
-        gt = open(job_path + gt_file, 'r', encoding='utf8')
-        gt_out = gt.read()
+    if 'result_dir' in os.listdir(base_path):
+        if get_jc() in os.listdir(results_path):
+            gt_file = 'google_translated.txt'
+            gt = open(job_path + gt_file, 'r', encoding='utf8')
+            gt_out = gt.read()
     else:
         translate_client = translate.Client(credentials=credentials)
         result = translate_client.translate(source_text, target_language='en')
