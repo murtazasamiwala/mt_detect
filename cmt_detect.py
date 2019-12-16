@@ -153,12 +153,13 @@ job_path = results_path + '\\' + get_jc() + '\\'
 
 def translate_text(source_text):
     """Check if text is already tranlsated. If not, translate it."""
+    gt_out = None
     if 'result_dir' in os.listdir(base_path):
         if get_jc() in os.listdir(results_path):
             gt_file = 'google_translated.txt'
             gt = open(job_path + gt_file, 'r', encoding='utf8')
             gt_out = gt.read()
-    else:
+    if gt_out is None:
         translate_client = translate.Client(credentials=credentials)
         result = translate_client.translate(source_text, target_language='en')
         gt_out = result['translatedText']
@@ -180,6 +181,8 @@ texts = {'google_translated': google_translated, 'translated': translated,
 
 def save_files():
     """Save source, translated, and gt files in results folder."""
+    if 'result_dir' not in os.listdir(base_path):
+        os.mkdir('result_dir')
     if get_jc() not in os.listdir(results_path):
         os.mkdir(results_path + '\\' + get_jc())
     for i in texts.keys():
@@ -216,8 +219,6 @@ def final_report():
     result = open('script_result.txt', 'w', encoding='utf8')
     result.write(final_msg)
     result.close()
-    if 'result_dir' not in os.listdir(base_path):
-        os.mkdir('result_dir')
     if 'results.csv' not in os.listdir(results_path):
         with open(csv_path, 'a', newline='') as result_csv:
             csv_writer = csv.writer(result_csv, delimiter=',')
