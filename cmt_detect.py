@@ -55,7 +55,6 @@ def extract_text(fname, path=base_path):
         doc = word.Documents.Open(path+'\\'+fname)
         txt = doc.Content.Text
         doc.Close(False)
-        word.Quit()
     elif fname.split('.')[-1] in ['xls', 'xlsx']:
         workbook = xlrd.open_workbook(fname)
         sheets_name = workbook.sheet_names()
@@ -86,6 +85,7 @@ def extract_text(fname, path=base_path):
     elif fname.endswith('.txt'):
         text_doc = open(fname, 'r', encoding='utf8')
         txt = text_doc.read()
+        txt.close()
     elif fname.endswith('.csv'):
         csv_doc = open(fname, 'r', encoding='utf8')
         csv_reader = csv.reader(csv_doc, delimiter=',')
@@ -151,22 +151,57 @@ language = translator.detect(source[:1000]).lang
 job_path = results_path + '\\' + get_jc() + '\\'
 
 
-def translate_text(source_text):
+def doc_split(doc):
+    """Split text into small chunks readable by google translate."""
+    translator = Translator()
+    lan = translator.detect(doc[:1000]).lang
+    if lan in ['ko', 'pt']:
+        tokens = doc.split('.')
+        tokens = [i + '.' for i in tokens]
+    elif lan in ['ja', 'zh-CN']:
+        tokens = doc.split('。')
+        tokens = [i + '。' for i in tokens]
+    split = []
+    len_counter = 0
+    temp_list = []
+    final = []
+    for i in range(len(tokens)):
+        if len_counter + len(tokens[i]) + len(temp_list) - 1 < 7000:
+            len_counter = len_counter + len(tokens[i])
+            temp_list.append(tokens[i])
+        else:
+            len_counter = len(tokens[i])
+            split.append(temp_list)
+            temp_list = []
+            temp_list.append(tokens[i])
+    split.append(temp_list)
+    final = [''.join(i) for i in split]
+    return final
+
+
+split_source = doc_split(source)
+
+
+def translate_text(split):
     """Check if text is already tranlsated. If not, translate it."""
+    gt_list = []
     gt_out = None
     if 'result_dir' in os.listdir(base_path):
         if get_jc() in os.listdir(results_path):
             gt_file = 'google_translated.txt'
             gt = open(job_path + gt_file, 'r', encoding='utf8')
             gt_out = gt.read()
+            gt.close()
     if gt_out is None:
-        translate_client = translate.Client(credentials=credentials)
-        result = translate_client.translate(source_text, target_language='en')
-        gt_out = result['translatedText']
+        for i in split:
+            translate_client = translate.Client(credentials=credentials)
+            result = translate_client.translate(i, target_language='en')
+            gt_list.append(result['translatedText'])
+        gt_out = ' '.join(gt_list)
     return gt_out
 
 
-google_translated = translate_text(source)
+google_translated = translate_text(split_source)
 zip_check = ['zip' in i for i in os.listdir(base_path)]
 if any(zip_check):
     for i in os.listdir(base_path):
