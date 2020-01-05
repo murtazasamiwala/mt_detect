@@ -31,6 +31,7 @@ credentials = service_account.Credentials.from_service_account_file(
 ignored_fol = ['result_dir', 'dont_delete_ignore']
 results_path = base_path + '\\' + 'result_dir'
 csv_path = results_path + '\\' + 'results.csv'
+excluded_files = ['_covering_letter.doc', '_Letter_from_the_Editor.docx']
 
 
 def get_jc(path=base_path):
@@ -114,51 +115,43 @@ def folder_to_txt(path=base_path):
                 if j == 'Job_files':
                     docs_path = base_path + '\\' + i + '\\' + 'Job_files'
                     for k in os.listdir(docs_path):
-                        source.append(extract_text(k, docs_path))
-                        source_names.append(k)
+                        if k not in [jc + i for i in excluded_files]:
+                            source.append(extract_text(k, docs_path))
+                            source_names.append(k)
+                        else:
+                            pass
                 elif j.endswith('Translate'):
                     docs_path = base_path + '\\' + i + '\\' + j
                     for k in os.listdir(docs_path):
-                        translated.append(extract_text(k, docs_path))
+                        if k not in [jc + i for i in excluded_files]:
+                            translated.append(extract_text(k, docs_path))
     source_str = ''.join([text + '\n' for text in source])
     trans_str = ''.join([text + '\n'for text in translated])
     return source_str, trans_str, source_names
 
 
-source, translated, source_file_names = folder_to_txt()
-similarity = SequenceMatcher(None, source, translated)
-rep = 0
-for i in similarity.get_matching_blocks():
-    if i[2] > 30:
-        if i[2] == len(source):
-            pass
-        elif source[i[0] - rep] in ['.', ' ']:
-            rep_source = source[i[0] + 1 - rep:i[0] + i[2] - rep]
-            source = source.replace(rep_source, '', 1)
-            rep_trans = translated[i[1] + 1 - rep:i[1] + i[2] - rep]
-            translated = translated.replace(rep_trans, '', 1)
-            rep += i[2] - 1
+def detect_language(doc):
+    """Detect language of given document."""
+    lan = 'en'
+    n = 0
+    segs = len(doc) // 1000
+    while lan == 'en':
+        translator = Translator()
+        if n < segs:
+            lan = translator.detect(doc[n * 1000:(n + 1) * 1000]).lang
+            n += 1
         else:
-            rep_source_2 = source[i[0] - rep:i[0] + i[2] - rep]
-            source = source.replace(rep_source_2, '', 1)
-            rep_trans_2 = translated[i[1] - rep:i[1] + i[2] - rep]
-            translated = translated.replace(rep_trans_2, '', 1)
-            rep += i[2]
-languages = {'en': 'english', 'pt': 'portuguese',
-             'ko': 'korean', 'ja': 'japanese', 'zh-CN': 'chinese'}
-translator = Translator()
-language = translator.detect(source[:1000]).lang
-job_path = results_path + '\\' + get_jc() + '\\'
+            lan = translator.detect(doc[n * 1000:]).lang
+            break
+    return lan
 
 
 def doc_split(doc):
     """Split text into small chunks readable by google translate."""
-    translator = Translator()
-    lan = translator.detect(doc[:1000]).lang
-    if lan in ['ko', 'pt']:
+    if language in ['ko', 'pt']:
         tokens = doc.split('.')
         tokens = [i + '.' for i in tokens]
-    elif lan in ['ja', 'zh-CN']:
+    elif language in ['ja', 'zh-CN']:
         tokens = doc.split('。')
         tokens = [i + '。' for i in tokens]
     split = []
@@ -179,15 +172,12 @@ def doc_split(doc):
     return final
 
 
-split_source = doc_split(source)
-
-
 def translate_text(split):
     """Check if text is already tranlsated. If not, translate it."""
     gt_list = []
     gt_out = None
     if 'result_dir' in os.listdir(base_path):
-        if get_jc() in os.listdir(results_path):
+        if jc in os.listdir(results_path):
             gt_file = 'google_translated.txt'
             gt = open(job_path + gt_file, 'r', encoding='utf8')
             gt_out = gt.read()
@@ -201,48 +191,21 @@ def translate_text(split):
     return gt_out
 
 
-google_translated = translate_text(split_source)
-zip_check = ['zip' in i for i in os.listdir(base_path)]
-if any(zip_check):
-    for i in os.listdir(base_path):
-        if (os.path.isdir(i)) & (i not in ignored_fol):
-            shutil.rmtree(i)
-similarity2 = SequenceMatcher(None, google_translated, translated)
-matches = similarity2.get_matching_blocks()
-ratio = similarity2.ratio()
-texts = {'google_translated': google_translated, 'translated': translated,
-         'source': source}
-
-
 def save_files():
     """Save source, translated, and gt files in results folder."""
     if 'result_dir' not in os.listdir(base_path):
         os.mkdir('result_dir')
-    if get_jc() not in os.listdir(results_path):
-        os.mkdir(results_path + '\\' + get_jc())
+    if jc not in os.listdir(results_path):
+        os.mkdir(results_path + '\\' + jc)
     for i in texts.keys():
         fname = open(job_path + '{}.txt'.format(i), 'w', encoding='utf8')
         fname.write(texts[i])
         fname.close()
 
 
-save_files()
-
-
-results = open('all_matches.txt', 'a', encoding='utf8')
-high_matches = 0
-match_threshold = {'pt': 100, 'ko': 80, 'ja': 80, 'zh-CN': 80}
-for i in matches:
-    if i[2] > match_threshold[language]:
-        buffer = '\n' + '*' * 20 + '\n'
-        results.write(google_translated[i[0]:i[0]+i[2]] + buffer)
-        high_matches += 1
-results.close()
-
-
 def final_report():
     """Output results of test in txt and csv formats."""
-    job_code = 'Job code: {}\n'.format(get_jc()) + '*' * 20 + '\n'
+    job_code = 'Job code: {}\n'.format(jc) + '*' * 20 + '\n'
     percent = round(ratio * 100, 2)
     similarity = f'Translation is {percent}% similar to google translate\n'
     match_msg = f'{high_matches} fragments significantly match google\n'
@@ -258,20 +221,67 @@ def final_report():
         with open(csv_path, 'a', newline='') as result_csv:
             csv_writer = csv.writer(result_csv, delimiter=',')
             fields = ['job_code', 'date_time', 'source_chars',
-                      'match_segments', 'percent_match', 'percent_segment']
+                      'match_segments', 'percent_match', 'percent_segment',
+                      'percent_length_high']
             csv_writer.writerow(fields)
             result_csv.close()
-    jc = get_jc()
     dt = datetime.now().strftime("%d/%m/%Y %H:%M")
     sc = len(source)
-    ms = high_matches
     pm = percent
     psm = round((high_matches / len(matches)) * 100, 2)
-    result_list = [jc, dt, sc, ms, pm, psm]
+    test_doc_length = len(google_translated) + len(translated)
+    plhm = round(((2 * len_high_matches)/test_doc_length) * 100, 2)
+    result_list = [jc, dt, sc, high_matches, pm, psm, plhm]
     with open(csv_path, 'a', newline='') as result_csv:
         csv_writer = csv.writer(result_csv, delimiter=',')
         csv_writer.writerow(result_list)
         result_csv.close()
 
 
+jc = get_jc()
+source, translated, source_file_names = folder_to_txt()
+similarity = SequenceMatcher(None, source, translated)
+rep = 0
+for i in similarity.get_matching_blocks():
+    if i[2] > 30:
+        if i[2] == len(source):
+            pass
+        elif source[i[0] - rep] in ['.', ' ']:
+            rep_source = source[i[0] + 1 - rep:i[0] + i[2] - rep]
+            source = source.replace(rep_source, '', 1)
+            rep_trans = translated[i[1] + 1 - rep:i[1] + i[2] - rep]
+            translated = translated.replace(rep_trans, '', 1)
+            rep += i[2] - 1
+        else:
+            rep_source_2 = source[i[0] - rep:i[0] + i[2] - rep]
+            source = source.replace(rep_source_2, '', 1)
+            rep_trans_2 = translated[i[1] - rep:i[1] + i[2] - rep]
+            translated = translated.replace(rep_trans_2, '', 1)
+            rep += i[2]
+job_path = results_path + '\\' + jc + '\\'
+language = detect_language(source)
+split_source = doc_split(source)
+google_translated = translate_text(split_source)
+zip_check = ['zip' in i for i in os.listdir(base_path)]
+if any(zip_check):
+    for i in os.listdir(base_path):
+        if (os.path.isdir(i)) & (i not in ignored_fol):
+            shutil.rmtree(i)
+similarity2 = SequenceMatcher(None, google_translated, translated)
+matches = similarity2.get_matching_blocks()
+ratio = similarity2.ratio()
+texts = {'google_translated': google_translated, 'translated': translated,
+         'source': source}
+save_files()
+results = open('all_matches.txt', 'a', encoding='utf8')
+high_matches = 0
+len_high_matches = 0
+match_threshold = {'pt': 100, 'ko': 80, 'ja': 80, 'zh-CN': 80}
+for i in matches:
+    if i[2] > match_threshold[language]:
+        buffer = '\n' + '*' * 20 + '\n'
+        results.write(google_translated[i[0]:i[0]+i[2]] + buffer)
+        high_matches += 1
+        len_high_matches += i[2]
+results.close()
 final_report()
