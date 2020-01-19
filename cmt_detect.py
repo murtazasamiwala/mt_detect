@@ -207,9 +207,11 @@ def final_report():
     """Output results of test in txt and csv formats."""
     job_code = 'Job code: {}\n'.format(jc) + '*' * 20 + '\n'
     percent = round(ratio * 100, 2)
+    sc = len(source)
     similarity = f'Translation is {percent}% similar to google translate\n'
-    match_msg = f'{high_matches} fragments significantly match google\n'
-    if (high_matches > 7) | (percent > 35):
+    match_thou = round((high_matches / sc) * 1000)
+    match_msg = f'{match_thou} long fragments per 1000 char match google\n'
+    if ((high_matches / len(source)) > 3) | (percent > 35):
         decision = 'There seems high similarity to google. Please escalate'
     else:
         decision = 'Similarity is likely to be coincidental. Ignore'
@@ -226,7 +228,6 @@ def final_report():
             csv_writer.writerow(fields)
             result_csv.close()
     dt = datetime.now().strftime("%d/%m/%Y %H:%M")
-    sc = len(source)
     pm = percent
     psm = round((high_matches / len(matches)) * 100, 2)
     test_doc_length = len(google_translated) + len(translated)
