@@ -25,7 +25,7 @@ if 'dont_delete_ignore' not in os.listdir(base_path):
     result.close()
     sys.exit()
 key_folder = base_path + '\\' + 'dont_delete_ignore'
-key_path = key_folder + '\\' + 'mt-detection-520f86a62a72.json'
+key_path = key_folder + '\\' + os.listdir(key_folder)[0]
 credentials = service_account.Credentials.from_service_account_file(
     key_path, scopes=["https://www.googleapis.com/auth/cloud-platform"])
 ignored_fol = ['result_dir', 'dont_delete_ignore']
