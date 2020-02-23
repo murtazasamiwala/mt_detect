@@ -57,7 +57,7 @@ def extract_text(fname, path=base_path):
         txt = doc.Content.Text
         doc.Close(False)
     elif fname.split('.')[-1] in ['xls', 'xlsx']:
-        workbook = xlrd.open_workbook(fname)
+        workbook = xlrd.open_workbook(path+'\\'+fname)
         sheets_name = workbook.sheet_names()
         txt = '\n'
         for names in sheets_name:
@@ -71,9 +71,9 @@ def extract_text(fname, path=base_path):
                     if value:
                         new_output.append(value)
                     if new_output:
-                        txt += ' '.join(new_output) + '\n'
+                        txt += ' '.join([str(i) for i in new_output]) + '\n'
     elif fname.endswith('.pptx'):
-        presentation = pptx.Presentation(fname)
+        presentation = pptx.Presentation(path+'\\'+fname)
         text_runs = []
         for slide in presentation.slides:
             for shape in slide.shapes:
@@ -84,11 +84,11 @@ def extract_text(fname, path=base_path):
                         text_runs.append(run.text)
         txt = '\n\n'.join(text_runs)
     elif fname.endswith('.txt'):
-        text_doc = open(fname, 'r', encoding='utf8')
+        text_doc = open(path+'\\'+fname, 'r', encoding='utf8')
         txt = text_doc.read()
-        txt.close()
+        text_doc.close()
     elif fname.endswith('.csv'):
-        csv_doc = open(fname, 'r', encoding='utf8')
+        csv_doc = open(path+'\\'+fname, 'r', encoding='utf8')
         csv_reader = csv.reader(csv_doc, delimiter=',')
         txt = '\n'.join(['\t'.join(row) for row in csv_reader])
     return txt
