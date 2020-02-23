@@ -211,7 +211,7 @@ def final_report():
     similarity = f'Translation is {percent}% similar to google translate\n'
     match_thou = round((high_matches / sc) * 1000)
     match_msg = f'{match_thou} long fragments per 1000 char match google\n'
-    if ((high_matches / len(source)) > 3) | (percent > 35):
+    if ((high_matches / len(source)) > 3) | (percent > 40):
         decision = 'There seems high similarity to google. Please escalate'
     else:
         decision = 'Similarity is likely to be coincidental. Ignore'
