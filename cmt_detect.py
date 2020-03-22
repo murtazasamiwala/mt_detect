@@ -15,11 +15,12 @@ from datetime import datetime
 from google.oauth2 import service_account
 from google.cloud import translate_v2 as translate
 base_path = os.path.dirname(abspath('__file__'))
+version = 'Version 1.26\n'
 if 'dont_delete_ignore' not in os.listdir(base_path):
     os.mkdir('dont_delete_ignore')
     kmsg_1 = 'Key not found.\n'
     kmsg_2 = 'Key folder has been created.\nSave key file to this folder.'
-    fkmsg = kmsg_1 + kmsg_2
+    fkmsg = version + kmsg_1 + kmsg_2
     result = open('script_result.txt', 'w', encoding='utf8')
     result.write(fkmsg)
     result.close()
@@ -52,7 +53,7 @@ def get_jc(path=base_path):
 def extract_text(fname, path=base_path):
     """Extract text from given document."""
     if fname.split('.')[-1] in ['doc', 'docx', 'rtf']:
-        word = win32.Dispatch('Word.Application')
+        word = win32.gencache.EnsureDispatch('Word.Application')
         doc = word.Documents.Open(path+'\\'+fname)
         txt = doc.Content.Text
         doc.Close(False)
@@ -113,6 +114,7 @@ def folder_to_txt(path=base_path):
         if (os.path.isdir(i)) & (i != 'results_dir'):
             for j in os.listdir(base_path + '\\' + i):
                 if j == 'Job_files':
+                    orig_folder = i
                     docs_path = base_path + '\\' + i + '\\' + 'Job_files'
                     for k in os.listdir(docs_path):
                         if k not in [jc + i for i in excluded_files]:
@@ -127,7 +129,7 @@ def folder_to_txt(path=base_path):
                             translated.append(extract_text(k, docs_path))
     source_str = ''.join([text + '\n' for text in source])
     trans_str = ''.join([text + '\n'for text in translated])
-    return source_str, trans_str, source_names
+    return source_str, trans_str, source_names, orig_folder
 
 
 def detect_language(doc):
@@ -158,15 +160,37 @@ def doc_split(doc):
     len_counter = 0
     temp_list = []
     final = []
-    for i in range(len(tokens)):
-        if len_counter + len(tokens[i]) + len(temp_list) - 1 < 7000:
-            len_counter = len_counter + len(tokens[i])
-            temp_list.append(tokens[i])
-        else:
-            len_counter = len(tokens[i])
-            split.append(temp_list)
-            temp_list = []
-            temp_list.append(tokens[i])
+    try:
+        for i in range(len(tokens)):
+            if len_counter + len(tokens[i]) + len(temp_list) - 1 < 7000:
+                len_counter = len_counter + len(tokens[i])
+                temp_list.append(tokens[i])
+            else:
+                len_counter = len(tokens[i])
+                split.append(temp_list)
+                temp_list = []
+                temp_list.append(tokens[i])
+    except UnboundLocalError:
+        error_msg = '''Job code: {}\n********************
+        \nExecution failed because source text not found.
+        \nThere are two possible reasons for this:
+        \n1. Source text not present
+        \n\tCheck if source file exists in Job_files subfolder of {}
+        \n\tIf not, download the file from CRM and paste into Job_files folder.
+        Then run script again.
+        \n\tIf source text is present, goto point 2.
+        \n2. Translator didn't delete source text in translated file
+        \n\tCheck translated file to see if source text is present.
+        \n\tIf yes, delete source text, accept tracks, and run again.
+        '''.format(get_jc(), orig_fol_name)
+        result = open('script_result.txt', 'w', encoding='utf-8')
+        fin_msg = version + error_msg
+        result.write(fin_msg)
+        result.close()
+        for i in os.listdir(base_path):
+            if i.endswith('.zip'):
+                os.remove(i)
+        sys.exit()
     split.append(temp_list)
     final = [''.join(i) for i in split]
     return final
@@ -211,11 +235,11 @@ def final_report():
     similarity = f'Translation is {percent}% similar to google translate\n'
     match_thou = round((high_matches / sc) * 1000)
     match_msg = f'{match_thou} long fragments per 1000 char match google\n'
-    if ((high_matches / len(source)) > 3) | (percent > 40):
+    if (match_thou > 3) | (percent > 40):
         decision = 'There seems high similarity to google. Please escalate'
     else:
         decision = 'Similarity is likely to be coincidental. Ignore'
-    final_msg = job_code + similarity + match_msg + decision
+    final_msg = version + job_code + similarity + match_msg + decision
     result = open('script_result.txt', 'w', encoding='utf8')
     result.write(final_msg)
     result.close()
@@ -224,7 +248,7 @@ def final_report():
             csv_writer = csv.writer(result_csv, delimiter=',')
             fields = ['job_code', 'date_time', 'source_chars',
                       'match_segments', 'percent_match', 'percent_segment',
-                      'percent_length_high']
+                      'percent_length_high', 'matches_per_thousand']
             csv_writer.writerow(fields)
             result_csv.close()
     dt = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -232,7 +256,7 @@ def final_report():
     psm = round((high_matches / len(matches)) * 100, 2)
     test_doc_length = len(google_translated) + len(translated)
     plhm = round(((2 * len_high_matches)/test_doc_length) * 100, 2)
-    result_list = [jc, dt, sc, high_matches, pm, psm, plhm]
+    result_list = [jc, dt, sc, high_matches, pm, psm, plhm, match_thou]
     with open(csv_path, 'a', newline='') as result_csv:
         csv_writer = csv.writer(result_csv, delimiter=',')
         csv_writer.writerow(result_list)
@@ -240,7 +264,7 @@ def final_report():
 
 
 jc = get_jc()
-source, translated, source_file_names = folder_to_txt()
+source, translated, source_file_names, orig_fol_name = folder_to_txt()
 similarity = SequenceMatcher(None, source, translated)
 rep = 0
 for i in similarity.get_matching_blocks():
