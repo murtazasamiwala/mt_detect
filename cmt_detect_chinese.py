@@ -15,7 +15,7 @@ from datetime import datetime
 from google.oauth2 import service_account
 from google.cloud import translate_v2 as translate
 base_path = os.path.dirname(abspath('__file__'))
-version = 'Version 1.26\n'
+version = 'Version 1.27\n'
 if 'dont_delete_ignore' not in os.listdir(base_path):
     os.mkdir('dont_delete_ignore')
     kmsg_1 = 'Key not found.\n'
@@ -111,7 +111,7 @@ def folder_to_txt(path=base_path):
     source_names = []
     unzip_folders()
     for i in os.listdir(path):
-        if (os.path.isdir(i)) & (i not in ignored_fol):
+        if (os.path.isdir(i)) & (i != 'results_dir'):
             for j in os.listdir(base_path + '\\' + i):
                 if j == 'Job_files':
                     orig_folder = i
@@ -145,6 +145,22 @@ def detect_language(doc):
         else:
             lan = translator.detect(doc[n * 1000:]).lang
             break
+    return lan
+
+
+def detect_chinese(path=base_path):
+    """Detect variant of Chinese"""
+    lan = 'zh-CN'
+    check_name = 'Guidelines_for_identifying_use_of_SC_in_TC_jobs.docx'
+    for i in os.listdir(path):
+        if (os.path.isdir(i)) & (i not in ignored_fol):
+            unzip_path = base_path + '\\' + i
+            if 'Reference_files' in os.listdir(unzip_path):
+                ref_path = unzip_path + '\\' + 'Reference_files'
+                for i in os.listdir(ref_path):
+                    test_name = ''.join([j + '_' for j in i.split('_')[2:]])
+                    if test_name[:len(test_name)-1] == check_name:
+                        lan = 'zh-TW'
     return lan
 
 
@@ -284,7 +300,7 @@ for i in similarity.get_matching_blocks():
             translated = translated.replace(rep_trans_2, '', 1)
             rep += i[2]
 job_path = results_path + '\\' + jc + '\\'
-language = detect_language(source)
+language = detect_chinese()
 split_source = doc_split(source)
 google_translated = translate_text(split_source)
 zip_check = ['zip' in i for i in os.listdir(base_path)]
@@ -301,7 +317,8 @@ save_files()
 results = open('all_matches.txt', 'a', encoding='utf8')
 high_matches = 0
 len_high_matches = 0
-match_threshold = {'pt': 100, 'ko': 80, 'ja': 80, 'zh-CN': 80}
+match_threshold = {'pt': 100, 'ko': 80, 'ja': 80, 'zh-CN': 80,
+                   'zh-TW': 80}
 for i in matches:
     if i[2] > match_threshold[language]:
         buffer = '\n' + '*' * 20 + '\n'
