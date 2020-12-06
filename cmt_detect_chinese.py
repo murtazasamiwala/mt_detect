@@ -15,7 +15,7 @@ from datetime import datetime
 from google.oauth2 import service_account
 from google.cloud import translate_v2 as translate
 base_path = os.path.dirname(abspath('__file__'))
-version = 'Version 1.27\n'
+version = 'Version 1.27 (11th December)\n'
 if 'dont_delete_ignore' not in os.listdir(base_path):
     os.mkdir('dont_delete_ignore')
     kmsg_1 = 'Key not found.\n'

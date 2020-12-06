@@ -15,7 +15,7 @@ from datetime import datetime
 from google.oauth2 import service_account
 from google.cloud import translate_v2 as translate
 base_path = os.path.dirname(abspath('__file__'))
-version = 'Version 1.26\n'
+version = 'Version 1.27 (11th December)\n'
 if 'dont_delete_ignore' not in os.listdir(base_path):
     os.mkdir('dont_delete_ignore')
     kmsg_1 = 'Key not found.\n'
@@ -33,6 +33,26 @@ ignored_fol = ['result_dir', 'dont_delete_ignore']
 results_path = base_path + '\\' + 'result_dir'
 csv_path = results_path + '\\' + 'results.csv'
 excluded_files = ['_covering_letter.doc', '_Letter_from_the_Editor.docx']
+
+
+def language_selection(path=base_path):
+    """Select source language."""
+    if len(sys.argv) == 2:
+        lang = sys.argv[1]
+    else:
+        lang = 'zh-CN'
+        check_name = 'Guidelines_for_identifying_use_of_SC_in_TC_jobs.docx'
+        for i in os.listdir(path):
+            if (os.path.isdir(i)) & (i not in ignored_fol):
+                unzip_path = base_path + '\\' + i
+                if 'Reference_files' in os.listdir(unzip_path):
+                    ref_path = unzip_path + '\\' + 'Reference_files'
+                    for i in os.listdir(ref_path):
+                        ref_split = i.split('_')[2:]
+                        test_name = ''.join([j + '_' for j in ref_split])
+                        if test_name[:len(test_name)-1] == check_name:
+                            lang = 'zh-TW'
+    return lang
 
 
 def get_jc(path=base_path):
@@ -150,7 +170,7 @@ def detect_language(doc):
 
 def doc_split(doc):
     """Split text into small chunks readable by google translate."""
-    if language in ['ko', 'pt']:
+    if language in ['ko', 'pt', 'es', 'ru', 'ar', 'tr']:
         tokens = doc.split('.')
         tokens = [i + '.' for i in tokens]
     elif language in ['ja', 'zh-CN', 'zh-TW']:
@@ -284,7 +304,7 @@ for i in similarity.get_matching_blocks():
             translated = translated.replace(rep_trans_2, '', 1)
             rep += i[2]
 job_path = results_path + '\\' + jc + '\\'
-language = detect_language(source)
+language = language_selection()
 split_source = doc_split(source)
 google_translated = translate_text(split_source)
 zip_check = ['zip' in i for i in os.listdir(base_path)]
@@ -301,7 +321,9 @@ save_files()
 results = open('all_matches.txt', 'a', encoding='utf8')
 high_matches = 0
 len_high_matches = 0
-match_threshold = {'pt': 100, 'ko': 80, 'ja': 80, 'zh-CN': 80}
+match_threshold = {'pt': 100, 'ko': 80, 'ja': 80, 'zh-CN': 80,
+                   'zh-TW': 80, 'es': 100, 'ru': 100, 'ar': 90,
+                   'tr': 90}
 for i in matches:
     if i[2] > match_threshold[language]:
         buffer = '\n' + '*' * 20 + '\n'
